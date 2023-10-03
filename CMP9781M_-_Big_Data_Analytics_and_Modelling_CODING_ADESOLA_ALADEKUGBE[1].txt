@@ -1,0 +1,124 @@
+SECTION 3
+# To load Spark 
+C:\Users\DELL>cd C:\spark-3.3.2-bin-hadoop3
+
+C:\spark-3.3.2-bin-hadoop3>bin\pyspark
+
+from pyspark.sql import SparkSession
+# Create Spark session
+#This code created a brand-new SparkSession, which serves as the starting point for using the Dataset to programme Spark. 
+#The appName option is the name of the Spark application, 
+#and master specifies the URL to use to connect to the cluster management.
+spark = SparkSession.builder.appName("housing").master("local[*]") .getOrCreate()
+
+# Load data
+#This code generates a DataFrame called df using housing data obtained from a CSV file. 
+#The column names are present in the first row of the file, as shown by the header parameter being set to True. 
+#To automatically infer the data types of each column, the inferSchema parameter is set to True.
+df=spark.read.csv('C:/Users/DELL/Documents/housing.csv',header=True,inferSchema=True)
+
+# Parse data
+#This code generates a DataFrame called df using housing data obtained from a CSV file. 
+#The column names are present in the first row of the file, as shown by the header parameter being set to True.
+#To automatically infer the data types of each column, the inferSchema parameter is set to True.
+parsed_df = df.select("housing_median_age", "total_rooms", "total_bedrooms", "population", "households")
+parsed_df.show()
+
+# Separate features and labels
+#To merge the chosen columns into a single feature vector column called "features," this code use the VectorAssembler transformer. 
+#The feature vector column and the target variable column are both included in the DataFrame created, 
+#which is termed vector df.
+from pyspark.ml.feature import VectorAssembler
+assembler = VectorAssembler(inputCols=["housing_median_age", "total_rooms", "total_bedrooms", "population"], outputCol="features")
+vector_df = assembler.transform(df).select("features", "households")
+
+# Split data into train and test sets
+#According to the instructions, this code into 70:30 divides the vector df DataFrame into training and testing DataFrames with a 70:30 ratio. 
+#For reproducibility, a random seed i used which was 42
+train_df, test_df = vector_df.randomSplit([0.7, 0.3], seed=42)
+
+# Train linear regression model
+#The fit() method is used in this code to create a linear regression model and fit it to the training set of data. 
+#The attributes LabelCol defines the name of the target variable column, whereas Col specifies the name of the feature vector column. 
+#The control parameter maxIter, regParam, and elasticNetParam regulate the training procedure.
+from pyspark.ml.regression import LinearRegression
+lr = LinearRegression(featuresCol="features", labelCol="households", maxIter=10, regParam=0.3, elasticNetParam=0.8)
+lr_model = lr.fit(train_df)
+
+# Evaluate performance on train set
+#The trained model is used in this code to generate predictions for the training data, 
+#and the RegressionEvaluator evaluator is used to assess the predictions. 
+#The "mae" value for the metricName parameter is used to calculate the mean absolute error.
+from pyspark.ml.evaluation import RegressionEvaluator
+train_predictions = lr_model.transform(train_df)
+train_evaluator = RegressionEvaluator(labelCol="households", predictionCol='prediction', metricName='mae')
+train_mae = train_evaluator.evaluate(train_predictions)
+train_evaluator = RegressionEvaluator(labelCol="households", predictionCol='prediction', metricName='rmse')
+train_rmse = train_evaluator.evaluate(train_predictions)
+train_evaluator = RegressionEvaluator(labelCol="households", predictionCol='prediction', metricName='mse')
+train_mse = train_evaluator.evaluate(train_predictions)
+
+# Evaluate performance on test set
+#The trained model is used in this code to provide predictions for the testing data,
+ #and the RegressionEvaluator evaluator is used to assess the predictions. 
+#To determine the mean absolute error, the metricName option is set to "mae".
+test_predictions = lr_model.transform(test_df)
+test_evaluator = RegressionEvaluator(labelCol="households", predictionCol='prediction', metricName='mae')
+test_mae = test_evaluator.evaluate(test_predictions)
+test_evaluator = RegressionEvaluator(labelCol="households", predictionCol='prediction', metricName='rmse')
+test_rmse = test_evaluator.evaluate(test_predictions)
+test_evaluator = RegressionEvaluator(labelCol="households", predictionCol='prediction', metricName='mse')
+test_mse = test_evaluator.evaluate(test_predictions)
+
+# Print performance metrics
+print('Train MAE:', train_mae)
+print('Train RMSE:', train_rmse)
+print('Train MSE:', train_mse)
+print('Test MAE:', test_mae)
+print('Test RMSE:', test_rmse)
+print('Test MSE:', test_mse)
+
+# To Generate table of predicted vs actual values
+test_predictions.select(["households", 'prediction']).show()
+# To Generate predicted vs actual plot
+import matplotlib.pyplot as plt
+import numpy as np
+x = np.arange(len(test_predictions.select("households").collect()))
+y_true = [float(row.households) for row in test_predictions.select("households").collect()]
+y_pred = [float(row.prediction) for row in test_predictions.select('prediction').collect()]
+plt.scatter(x, y_true, label='True')
+plt.scatter(x, y_pred, label='Predicted')
+plt.legend()
+plt.show()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
